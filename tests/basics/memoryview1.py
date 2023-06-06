@@ -26,7 +26,7 @@ try:
 except TypeError:
     print("TypeError")
 try:
-    m[0:2] = b'00'
+    m[:2] = b'00'
 except TypeError:
     print("TypeError")
 
@@ -65,15 +65,15 @@ print(memoryview(b'abc') == b'abc')
 print(memoryview(b'abc') != b'abc')
 print(memoryview(b'abc') == b'xyz')
 print(memoryview(b'abc') != b'xyz')
-print(b'abc' == memoryview(b'abc'))
-print(b'abc' != memoryview(b'abc'))
-print(b'abc' == memoryview(b'xyz'))
-print(b'abc' != memoryview(b'xyz'))
+print(memoryview(b'abc') == b'abc')
+print(memoryview(b'abc') != b'abc')
+print(memoryview(b'xyz') == b'abc')
+print(memoryview(b'xyz') != b'abc')
 print(memoryview(b'abcdef')[2:4] == b'cd')
 print(memoryview(b'abcdef')[2:4] != b'cd')
 print(memoryview(b'abcdef')[2:4] == b'xy')
 print(memoryview(b'abcdef')[2:4] != b'xy')
-print(b'cd' == memoryview(b'abcdef')[2:4])
-print(b'cd' != memoryview(b'abcdef')[2:4])
-print(b'xy' == memoryview(b'abcdef')[2:4])
-print(b'xy' != memoryview(b'abcdef')[2:4])
+print(memoryview(b'abcdef')[2:4] == b'cd')
+print(memoryview(b'abcdef')[2:4] != b'cd')
+print(memoryview(b'abcdef')[2:4] == b'xy')
+print(memoryview(b'abcdef')[2:4] != b'xy')

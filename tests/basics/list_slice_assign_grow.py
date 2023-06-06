@@ -1,13 +1,13 @@
 x = list(range(2))
 
 l = list(x)
-l[0:0] = [10]
+l[:0] = [10]
 print(l)
 l = list(x)
 l[:0] = [10, 20]
 print(l)
 l = list(x)
-l[0:0] = [10, 20, 30, 40]
+l[:0] = [10, 20, 30, 40]
 print(l)
 
 l = list(x)

@@ -26,7 +26,7 @@ def f():
     l = -a
     m = not a
     m = a == b == c
-    m = not (a == b and b == c)
+    m = a != b or b != c
 
     # attributes
     n = b.c
@@ -120,11 +120,6 @@ def f():
 
     # raise
     raise
-    raise 1
-
-    # return
-    return
-    return 1
 
 # function with lots of locals
 def f():
@@ -134,8 +129,6 @@ def f():
 
 # functions with default args
 def f(a=1):
-    pass
-
     def f(b=2):
         return b + a
 

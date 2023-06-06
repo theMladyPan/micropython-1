@@ -23,16 +23,13 @@ from telnetlib import Telnet
 
 
 def print_exception(e):
-    print("Exception: {}, on line {}".format(e, sys.exc_info()[-1].tb_lineno))
+    print(f"Exception: {e}, on line {sys.exc_info()[-1].tb_lineno}")
 
 
 def ftp_directory_exists(ftpobj, directory_name):
     filelist = []
     ftpobj.retrlines("LIST", filelist.append)
-    for f in filelist:
-        if f.split()[-1] == directory_name:
-            return True
-    return False
+    return any(f.split()[-1] == directory_name for f in filelist)
 
 
 def transfer_file(args):
@@ -45,7 +42,7 @@ def transfer_file(args):
             if "250" in ftp.cwd("/flash"):
                 if not ftp_directory_exists(ftp, "sys"):
                     print("/flash/sys directory does not exist")
-                    if not "550" in ftp.mkd("sys"):
+                    if "550" not in ftp.mkd("sys"):
                         print("/flash/sys directory created")
                     else:
                         print("Error: cannot create /flash/sys directory")

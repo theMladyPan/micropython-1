@@ -159,18 +159,26 @@ def run_micropython(pyb, args, test_file, is_special=False):
             # a standard test run on PC
 
             # create system command
-            cmdlist = [MICROPYTHON, "-X", "emit=" + args.emit]
+            cmdlist = [MICROPYTHON, "-X", f"emit={args.emit}"]
             if args.heapsize is not None:
-                cmdlist.extend(["-X", "heapsize=" + args.heapsize])
+                cmdlist.extend(["-X", f"heapsize={args.heapsize}"])
 
             # if running via .mpy, first compile the .py file
             if args.via_mpy:
                 mpy_modname = tempfile.mktemp(dir="")
-                mpy_filename = mpy_modname + ".mpy"
+                mpy_filename = f"{mpy_modname}.mpy"
                 subprocess.check_output(
-                    [MPYCROSS]
-                    + args.mpy_cross_flags.split()
-                    + ["-o", mpy_filename, "-X", "emit=" + args.emit, test_file]
+                    (
+                        [MPYCROSS]
+                        + args.mpy_cross_flags.split()
+                        + [
+                            "-o",
+                            mpy_filename,
+                            "-X",
+                            f"emit={args.emit}",
+                            test_file,
+                        ]
+                    )
                 )
                 cmdlist.extend(["-m", mpy_modname])
             else:
@@ -208,13 +216,14 @@ def run_micropython(pyb, args, test_file, is_special=False):
 
     if is_special or test_file in special_tests:
         # convert parts of the output that are not stable across runs
-        with open(test_file + ".exp", "rb") as f:
+        with open(f"{test_file}.exp", "rb") as f:
             lines_exp = []
-            for line in f.readlines():
-                if line == b"########\n":
-                    line = (line,)
-                else:
-                    line = (line, re.compile(convert_regex_escapes(line)))
+            for line in f:
+                line = (
+                    (line,)
+                    if line == b"########\n"
+                    else (line, re.compile(convert_regex_escapes(line)))
+                )
                 lines_exp.append(line)
         lines_mupy = [line + b"\n" for line in output_mupy.split(b"\n")]
         if output_mupy.endswith(b"\n"):
@@ -239,9 +248,6 @@ def run_micropython(pyb, args, test_file, is_special=False):
                 # a regex
                 if lines_exp[i][1].match(lines_mupy[i_mupy]):
                     lines_mupy[i_mupy] = lines_exp[i][0]
-                else:
-                    # print("don't match: %r %s" % (lines_exp[i][1], lines_mupy[i_mupy])) # DEBUG
-                    pass
                 i_mupy += 1
             if i_mupy >= len(lines_mupy):
                 break
@@ -452,10 +458,10 @@ def run_tests(pyb, tests, args, result_dir, num_threads=1):
             skip_tests.add("misc/print_exception.py")  # requires error reporting full
             skip_tests.update(
                 {
-                    "extmod/uctypes_%s.py" % t
+                    f"extmod/uctypes_{t}.py"
                     for t in "bytearray le native_le ptr_le ptr_native_le sizeof sizeof_native array_assign_le array_assign_native_le".split()
                 }
-            )  # requires uctypes
+            )
             skip_tests.add("extmod/zlibd_decompress.py")  # requires zlib
             skip_tests.add("extmod/uheapq1.py")  # uheapq not supported by WiPy
             skip_tests.add("extmod/urandom_basic.py")  # requires urandom
@@ -492,14 +498,20 @@ def run_tests(pyb, tests, args, result_dir, num_threads=1):
     # Remove them from the below when they work
     if args.emit == "native":
         skip_tests.update(
-            {"basics/%s.py" % t for t in "gen_yield_from_close generator_name".split()}
-        )  # require raise_varargs, generator name
+            {
+                f"basics/{t}.py"
+                for t in "gen_yield_from_close generator_name".split()
+            }
+        )
         skip_tests.update(
-            {"basics/async_%s.py" % t for t in "with with2 with_break with_return".split()}
-        )  # require async_with
+            {
+                f"basics/async_{t}.py"
+                for t in "with with2 with_break with_return".split()
+            }
+        )
         skip_tests.update(
-            {"basics/%s.py" % t for t in "try_reraise try_reraise2".split()}
-        )  # require raise_varargs
+            {f"basics/{t}.py" for t in "try_reraise try_reraise2".split()}
+        )
         skip_tests.add("basics/annotate_var.py")  # requires checking for unbound local
         skip_tests.add("basics/del_deref.py")  # requires checking for unbound local
         skip_tests.add("basics/del_local.py")  # requires checking for unbound local
@@ -581,7 +593,7 @@ def run_tests(pyb, tests, args, result_dir, num_threads=1):
             return
 
         # get expected output
-        test_file_expected = test_file + ".exp"
+        test_file_expected = f"{test_file}.exp"
         if os.path.isfile(test_file_expected):
             # expected output given by a file, so read that in
             with open(test_file_expected, "rb") as f:
@@ -612,8 +624,8 @@ def run_tests(pyb, tests, args, result_dir, num_threads=1):
 
         testcase_count.add(len(output_expected.splitlines()))
 
-        filename_expected = os.path.join(result_dir, test_basename + ".exp")
-        filename_mupy = os.path.join(result_dir, test_basename + ".out")
+        filename_expected = os.path.join(result_dir, f"{test_basename}.exp")
+        filename_mupy = os.path.join(result_dir, f"{test_basename}.out")
 
         if output_expected == output_mupy:
             print("pass ", test_file)
@@ -669,10 +681,7 @@ class append_filter(argparse.Action):
     def __call__(self, parser, args, value, option):
         if not hasattr(args, self.dest):
             args.filters = []
-        if option.startswith(("-e", "--e")):
-            option = "exclude"
-        else:
-            option = "include"
+        option = "exclude" if option.startswith(("-e", "--e")) else "include"
         args.filters.append((option, re.compile(value)))
 
 
@@ -805,7 +814,9 @@ the last matching regex is used:
         pyb = pyboard.Pyboard(args.device, args.baudrate, args.user, args.password)
         pyb.enter_raw_repl()
     else:
-        raise ValueError("target must be one of %s" % ", ".join(LOCAL_TARGETS + EXTERNAL_TARGETS))
+        raise ValueError(
+            f'target must be one of {", ".join(LOCAL_TARGETS + EXTERNAL_TARGETS)}'
+        )
 
     if len(args.files) == 0:
         if args.test_dirs is None:
@@ -849,7 +860,7 @@ the last matching regex is used:
             test_dirs = args.test_dirs
         tests = sorted(
             test_file
-            for test_files in (glob("{}/*.py".format(dir)) for dir in test_dirs)
+            for test_files in (glob(f"{dir}/*.py") for dir in test_dirs)
             for test_file in test_files
         )
     else:
@@ -858,7 +869,7 @@ the last matching regex is used:
 
     if not args.keep_path:
         # clear search path to make sure tests use only builtin modules and those in extmod
-        os.environ["MICROPYPATH"] = ".frozen" + os.pathsep + base_path("../extmod")
+        os.environ["MICROPYPATH"] = f".frozen{os.pathsep}" + base_path("../extmod")
 
     try:
         os.makedirs(args.result_dir, exist_ok=True)

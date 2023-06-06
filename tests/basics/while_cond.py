@@ -26,11 +26,11 @@ while True:
     print('a')
     break
 
-while not False:
+while True:
     print('a')
     break
 
-while not True:
+while False:
     print('a')
 else:
     print('b')

@@ -25,10 +25,7 @@ def show_adc(lcd, adc):
             lcd.set_font(2, trans=1)
             lcd.set_pos(0, lcd.h - 60 + i * 16)
         lcd.write("%4s: " % ("TEMP", "VBAT", "VREF")[i])
-        if i > 0:
-            s = "%6.3fV" % data[i]
-        else:
-            s = "%5.1f°C" % data[i]
+        s = "%6.3fV" % data[i] if i > 0 else "%5.1f°C" % data[i]
         if lcd.h == 160:
             lcd.set_font(1, bold=0, scale=1)
         else:
@@ -167,10 +164,7 @@ def test_mandel(lcd, orient=lcd160cr.PORTRAIT):
     for v in range(h):
         for u in range(w):
             c = in_set((v / hh - 2.3) + (u / ww - 1.2) * 1j)
-            if c < 16:
-                rgb = c << 12 | c << 6
-            else:
-                rgb = 0xF800 | c << 6
+            rgb = c << 12 | c << 6 if c < 16 else 0xF800 | c << 6
             line[2 * u] = rgb
             line[2 * u + 1] = rgb >> 8
         spi.write(line)

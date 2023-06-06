@@ -10,8 +10,7 @@ import markdown
 # given a list of (name,regex) pairs, find the first one that matches the given line
 def re_match_first(regexs, line):
     for name, regex in regexs:
-        match = re.match(regex, line)
-        if match:
+        if match := re.match(regex, line):
             return name, match
     return None, None
 
@@ -45,7 +44,7 @@ class Lexer:
                     lines.append((line_num, line[4:]))
                 elif len(lines) > 0 and lines[-1][1] is not None:
                     lines.append((line_num, None))
-        if len(lines) > 0 and lines[-1][1] is not None:
+        if lines and lines[-1][1] is not None:
             lines.append((line_num, None))
         self.cur_line = 0
         self.lines = lines
@@ -57,16 +56,15 @@ class Lexer:
     def next(self):
         if len(self.lines) == 0:
             raise Lexer.EOF
+        l = self.lines.pop(0)
+        self.cur_line = l[0]
+        if l[1] is None:
+            raise Lexer.Break
         else:
-            l = self.lines.pop(0)
-            self.cur_line = l[0]
-            if l[1] is None:
-                raise Lexer.Break
-            else:
-                return l[1]
+            return l[1]
 
     def error(self, msg):
-        print("({}:{}) {}".format(self.filename, self.cur_line, msg))
+        print(f"({self.filename}:{self.cur_line}) {msg}")
         raise Lexer.LexerError
 
 
@@ -101,26 +99,24 @@ class MarkdownWriter:
         self.lines.append(text)
 
     def module(self, name, short_descr, descr):
-        self.heading(1, "module {}".format(name))
+        self.heading(1, f"module {name}")
         self.para(descr)
 
     def function(self, ctx, name, args, descr):
-        proto = "{}.{}{}".format(ctx, self.name, self.args)
-        self.heading(3, "`" + proto + "`")
+        proto = f"{ctx}.{self.name}{self.args}"
+        self.heading(3, f"`{proto}`")
         self.para(descr)
 
     def method(self, ctx, name, args, descr):
-        if name == "\\constructor":
-            proto = "{}{}".format(ctx, args)
-        elif name == "\\call":
-            proto = "{}{}".format(ctx, args)
+        if name in ["\\constructor", "\\call"]:
+            proto = f"{ctx}{args}"
         else:
-            proto = "{}.{}{}".format(ctx, name, args)
-        self.heading(3, "`" + proto + "`")
+            proto = f"{ctx}.{name}{args}"
+        self.heading(3, f"`{proto}`")
         self.para(descr)
 
     def constant(self, ctx, name, descr):
-        self.single_line("`{}.{}` - {}".format(ctx, name, descr))
+        self.single_line(f"`{ctx}.{name}` - {descr}")
 
 
 class ReStructuredTextWriter:
@@ -163,28 +159,30 @@ class ReStructuredTextWriter:
         self.lines.append(self._convert(text))
 
     def module(self, name, short_descr, descr):
-        self.heading(1, ":mod:`{}` --- {}".format(name, self._convert(short_descr)), convert=False)
-        self.lines.append(".. module:: {}".format(name))
-        self.lines.append("   :synopsis: {}".format(short_descr))
+        self.heading(
+            1, f":mod:`{name}` --- {self._convert(short_descr)}", convert=False
+        )
+        self.lines.append(f".. module:: {name}")
+        self.lines.append(f"   :synopsis: {short_descr}")
         self.para(descr)
 
     def function(self, ctx, name, args, descr):
         args = self._convert(args)
-        self.lines.append(".. function:: " + name + args)
+        self.lines.append(f".. function:: {name}{args}")
         self.para(descr, indent="   ")
 
     def method(self, ctx, name, args, descr):
         args = self._convert(args)
         if name == "\\constructor":
-            self.lines.append(".. class:: " + ctx + args)
+            self.lines.append(f".. class:: {ctx}{args}")
         elif name == "\\call":
-            self.lines.append(".. method:: " + ctx + args)
+            self.lines.append(f".. method:: {ctx}{args}")
         else:
-            self.lines.append(".. method:: " + ctx + "." + name + args)
+            self.lines.append(f".. method:: {ctx}.{name}{args}")
         self.para(descr, indent="   ")
 
     def constant(self, ctx, name, descr):
-        self.lines.append(".. data:: " + name)
+        self.lines.append(f".. data:: {name}")
         self.para(descr, indent="   ")
 
 
@@ -251,12 +249,9 @@ class DocClass(DocItem):
 
     def process_classmethod(self, lex, d):
         name = d["id"]
-        if name == "\\constructor":
-            dict_ = self.constructors
-        else:
-            dict_ = self.classmethods
+        dict_ = self.constructors if name == "\\constructor" else self.classmethods
         if name in dict_:
-            lex.error("multiple definition of method '{}'".format(name))
+            lex.error(f"multiple definition of method '{name}'")
         method = dict_[name] = DocMethod(name, d["args"])
         method.add_doc(lex)
 
@@ -264,19 +259,19 @@ class DocClass(DocItem):
         name = d["id"]
         dict_ = self.methods
         if name in dict_:
-            lex.error("multiple definition of method '{}'".format(name))
+            lex.error(f"multiple definition of method '{name}'")
         method = dict_[name] = DocMethod(name, d["args"])
         method.add_doc(lex)
 
     def process_constant(self, lex, d):
         name = d["id"]
         if name in self.constants:
-            lex.error("multiple definition of constant '{}'".format(name))
+            lex.error(f"multiple definition of constant '{name}'")
         self.constants[name] = DocConstant(name, d["descr"])
         lex.opt_break()
 
     def dump(self, writer):
-        writer.heading(1, "class {}".format(self.name))
+        writer.heading(1, f"class {self.name}")
         super().dump(writer)
         if len(self.constructors) > 0:
             writer.heading(2, "Constructors")
@@ -312,7 +307,7 @@ class DocModule(DocItem):
     def process_function(self, lex, d):
         name = d["id"]
         if name in self.functions:
-            lex.error("multiple definition of function '{}'".format(name))
+            lex.error(f"multiple definition of function '{name}'")
         function = self.functions[name] = DocFunction(name, d["args"])
         function.add_doc(lex)
 
@@ -324,7 +319,7 @@ class DocModule(DocItem):
     def process_class(self, lex, d):
         name = d["id"]
         if name in self.classes:
-            lex.error("multiple definition of class '{}'".format(name))
+            lex.error(f"multiple definition of class '{name}'")
         self.cur_class = self.classes[name] = DocClass(name, d["descr"])
         self.cur_class.add_doc(lex)
 
@@ -339,7 +334,7 @@ class DocModule(DocItem):
             # a module-level constant
             name = d["id"]
             if name in self.constants:
-                lex.error("multiple definition of constant '{}'".format(name))
+                lex.error(f"multiple definition of constant '{name}'")
             self.constants[name] = DocConstant(name, d["descr"])
             lex.opt_break()
         else:
@@ -348,7 +343,7 @@ class DocModule(DocItem):
 
     def validate(self):
         if self.descr is None:
-            raise DocValidateError("module {} referenced but never defined".format(self.name))
+            raise DocValidateError(f"module {self.name} referenced but never defined")
 
     def dump(self, writer):
         writer.module(self.name, self.descr, self.doc)
@@ -363,7 +358,7 @@ class DocModule(DocItem):
         if self.classes:
             writer.heading(2, "Classes")
             for c in sorted(self.classes.values(), key=lambda x: x.name):
-                writer.para("[`{}.{}`]({}) - {}".format(self.name, c.name, c.name, c.descr))
+                writer.para(f"[`{self.name}.{c.name}`]({c.name}) - {c.descr}")
 
     def write_html(self, dir):
         md_writer = MarkdownWriter()
@@ -375,7 +370,7 @@ class DocModule(DocItem):
             class_dir = os.path.join(dir, c.name)
             makedirs(class_dir)
             md_writer.start()
-            md_writer.para("part of the [{} module](./)".format(self.name))
+            md_writer.para(f"part of the [{self.name} module](./)")
             c.dump(md_writer)
             with open(os.path.join(class_dir, "index.html"), "wt") as f:
                 f.write(markdown.markdown(md_writer.end()))
@@ -384,12 +379,12 @@ class DocModule(DocItem):
         rst_writer = ReStructuredTextWriter()
         rst_writer.start()
         self.dump(rst_writer)
-        with open(dir + "/" + self.name + ".rst", "wt") as f:
+        with open(f"{dir}/{self.name}.rst", "wt") as f:
             f.write(rst_writer.end())
         for c in self.classes.values():
             rst_writer.start()
             c.dump(rst_writer)
-            with open(dir + "/" + self.name + "." + c.name + ".rst", "wt") as f:
+            with open(f"{dir}/{self.name}.{c.name}.rst", "wt") as f:
                 f.write(rst_writer.end())
 
 
@@ -413,7 +408,7 @@ class Doc:
             self.modules[name] = DocModule(name, None)
         self.cur_module = self.modules[name]
         if self.cur_module.descr is not None:
-            lex.error("multiple definition of module '{}'".format(name))
+            lex.error(f"multiple definition of module '{name}'")
         self.cur_module.descr = d["descr"]
         self.cur_module.add_doc(lex)
 
@@ -452,7 +447,7 @@ class Doc:
         writer.heading(1, "Modules")
         writer.para("These are the Python modules that are implemented.")
         for m in sorted(self.modules.values(), key=lambda x: x.name):
-            writer.para("[`{}`]({}/) - {}".format(m.name, m.name, m.descr))
+            writer.para(f"[`{m.name}`]({m.name}/) - {m.descr}")
 
     def write_html(self, dir):
         md_writer = MarkdownWriter()
@@ -497,8 +492,8 @@ def process_file(file, doc):
             while True:
                 line = lex.next()
                 fun, match = re_match_first(doc_regexs, line)
-                if fun == None:
-                    lex.error("unknown line format: {}".format(line))
+                if fun is None:
+                    lex.error(f"unknown line format: {line}")
                 fun(doc, lex, match.groupdict())
 
         except Lexer.Break:

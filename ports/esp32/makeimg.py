@@ -11,7 +11,7 @@ OFFSET_PARTITIONS_DEFAULT = 0x8000
 
 
 def load_sdkconfig_value(filename, value, default):
-    value = "CONFIG_" + value + "="
+    value = f"CONFIG_{value}="
     with open(filename, "r") as f:
         for line in f:
             if line.startswith(value):
@@ -21,16 +21,12 @@ def load_sdkconfig_value(filename, value, default):
 
 def load_sdkconfig_hex_value(filename, value, default):
     value = load_sdkconfig_value(filename, value, None)
-    if value is None:
-        return default
-    return int(value, 16)
+    return default if value is None else int(value, 16)
 
 
 def load_sdkconfig_str_value(filename, value, default):
     value = load_sdkconfig_value(filename, value, None)
-    if value is None:
-        return default
-    return value.strip().strip('"')
+    return default if value is None else value.strip().strip('"')
 
 
 def load_partition_table(filename):

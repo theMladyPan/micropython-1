@@ -72,12 +72,12 @@ def mimxrt_default_parser(defines_file, features_file, ld_script):
     fsl_bank_nbr_match = re.search(fsl_bank_nbr_regex, input_str, re.MULTILINE)
     #
     extract = {
-        "ocram_size": int(ocram_match.group("size"), 16),
-        "dtcm_size": int(dtcm_match.group("size"), 16),
-        "itcm_size": int(itcm_match.group("size"), 16),
-        "gpr_base_addr": int(mcu_define_file_match.group("base_addr"), 16),
-        "fsl_ram_bank_size": int(fsl_ram_bank_size_match.group("size")),
-        "fsl_bank_nbr": int(fsl_bank_nbr_match.group("number")),
+        "ocram_size": int(ocram_match["size"], 16),
+        "dtcm_size": int(dtcm_match["size"], 16),
+        "itcm_size": int(itcm_match["size"], 16),
+        "gpr_base_addr": int(mcu_define_file_match["base_addr"], 16),
+        "fsl_ram_bank_size": int(fsl_ram_bank_size_match["size"]),
+        "fsl_bank_nbr": int(fsl_bank_nbr_match["number"]),
     }
     # Evaluate configuration
     if extract["ocram_size"] < ocram_min_size:

@@ -22,24 +22,24 @@ b3 = bytearray(b'5678')
 m1 = memoryview(b1)
 m2 = memoryview(b2)
 m3 = memoryview(b3)
-m2[1:3] = m1[0:2]
+m2[1:3] = m1[:2]
 print(b2)
-b3[1:3] = m1[0:2]
+b3[1:3] = m1[:2]
 print(b3)
 m1[2:4] = b3[1:3]
 print(b1)
 
 # invalid slice assignments
 try:
-    m2[1:3] = b1[0:4]
+    m2[1:3] = b1[:4]
 except ValueError:
     print("ValueError")
 try:
-    m2[1:3] = m1[0:4]
+    m2[1:3] = m1[:4]
 except ValueError:
     print("ValueError")
 try:
-    m2[0:4] = m1[1:3]
+    m2[:4] = m1[1:3]
 except ValueError:
     print("ValueError")
 
@@ -58,7 +58,7 @@ except ValueError:
 
 # invalid assignment on RHS
 try:
-    memoryview(array.array('i'))[0:2] = b'1234'
+    memoryview(array.array('i'))[:2] = b'1234'
 except ValueError:
     print('ValueError')
 

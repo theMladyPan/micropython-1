@@ -22,7 +22,7 @@ def memadd(src: ptr32, n: int) -> int:
 @micropython.viper
 def memadd2(src_in) -> int:
     src = ptr32(src_in)
-    n = int(len(src_in)) >> 2
+    n = len(src_in) >> 2
     sum = 0
     for i in range(n):
         sum += src[i]

@@ -59,7 +59,7 @@ else:
 import sys
 import struct
 
-sys.path.append(sys.path[0] + "/../py")
+sys.path.append(f"{sys.path[0]}/../py")
 import makeqstrdata as qstrutil
 
 
@@ -69,7 +69,7 @@ class MPYReadError(Exception):
         self.msg = msg
 
     def __str__(self):
-        return "%s: %s" % (self.filename, self.msg)
+        return f"{self.filename}: {self.msg}"
 
 
 class FreezeError(Exception):
@@ -78,7 +78,7 @@ class FreezeError(Exception):
         self.msg = msg
 
     def __str__(self):
-        return "error while freezing %s: %s" % (self.rawcode.source_file, self.msg)
+        return f"error while freezing {self.rawcode.source_file}: {self.msg}"
 
 
 class Config:
@@ -95,15 +95,12 @@ class QStrType:
     def __init__(self, str):
         self.str = str
         self.qstr_esc = qstrutil.qstr_escape(self.str)
-        self.qstr_id = "MP_QSTR_" + self.qstr_esc
+        self.qstr_id = f"MP_QSTR_{self.qstr_esc}"
 
 
 # Initialise global list of qstrs with static qstrs
 global_qstrs = [None]  # MP_QSTRnull should never be referenced
-for n in qstrutil.static_qstr_list:
-    global_qstrs.append(QStrType(n))
-
-
+global_qstrs.extend(QStrType(n) for n in qstrutil.static_qstr_list)
 MP_CODE_BYTECODE = 2
 MP_CODE_NATIVE_PY = 3
 MP_CODE_NATIVE_VIPER = 4
@@ -495,30 +492,21 @@ class CompiledModule:
                             cur_col_index = 1 - cur_col_index
                             line_hex += cur_col
                             line_chr += cur_col
-                            line_comment += " %s%s%s" % (
-                                cur_col,
-                                self.mpy_segments[segment_index].name,
-                                COL_OFF,
-                            )
-                        if offset + i == self.mpy_segments[segment_index].end:
-                            cur_col = ""
-                            line_hex += COL_OFF
-                            line_chr += COL_OFF
-                            segment_index += 1
-                        else:
+                            line_comment += f" {cur_col}{self.mpy_segments[segment_index].name}{COL_OFF}"
+                        if offset + i != self.mpy_segments[segment_index].end:
                             break
 
+                        cur_col = ""
+                        line_hex += COL_OFF
+                        line_chr += COL_OFF
+                        segment_index += 1
                     # Add to the hex part of the line.
                     if i % 2 == 0:
                         line_hex += " "
                     line_hex += "%02x" % data[i]
 
                     # Add to the characters part of the line.
-                    if 0x20 <= data[i] <= 0x7E:
-                        line_chr += "%s" % chr(data[i])
-                    else:
-                        line_chr += "."
-
+                    line_chr += f"{chr(data[i])}" if 0x20 <= data[i] <= 0x7E else "."
                 # Print out this line.
                 if cur_col:
                     line_hex += COL_OFF
@@ -533,17 +521,17 @@ class CompiledModule:
         print("header:", hexlify_to_str(self.header))
         print("qstr_table[%u]:" % len(self.qstr_table))
         for q in self.qstr_table:
-            print("    %s" % q.str)
+            print(f"    {q.str}")
         print("obj_table:", self.obj_table)
         self.raw_code.disassemble()
 
     def freeze(self, compiled_module_index):
         print()
         print("/" * 80)
-        print("// frozen module %s" % self.escaped_name)
-        print("// - original source file: %s" % self.mpy_source_file)
-        print("// - frozen file name: %s" % self.source_file.str)
-        print("// - .mpy header: %s" % ":".join("%02x" % b for b in self.header))
+        print(f"// frozen module {self.escaped_name}")
+        print(f"// - original source file: {self.mpy_source_file}")
+        print(f"// - frozen file name: {self.source_file.str}")
+        print(f'// - .mpy header: {":".join("%02x" % b for b in self.header)}')
         print()
 
         self.raw_code.freeze()
@@ -556,17 +544,18 @@ class CompiledModule:
         print("    .constants = {")
         if len(self.qstr_table):
             print(
-                "        .qstr_table = (qstr_short_t *)&const_qstr_table_data_%s,"
-                % self.escaped_name
+                f"        .qstr_table = (qstr_short_t *)&const_qstr_table_data_{self.escaped_name},"
             )
         else:
             print("        .qstr_table = NULL,")
         if len(self.obj_table):
-            print("        .obj_table = (mp_obj_t *)&const_obj_table_data_%s," % self.escaped_name)
+            print(
+                f"        .obj_table = (mp_obj_t *)&const_obj_table_data_{self.escaped_name},"
+            )
         else:
             print("        .obj_table = NULL,")
         print("    },")
-        print("    .rc = &raw_code_%s," % self.raw_code.escaped_name)
+        print(f"    .rc = &raw_code_{self.raw_code.escaped_name},")
         print("};")
 
     def freeze_constants(self):
