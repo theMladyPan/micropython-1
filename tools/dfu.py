@@ -28,7 +28,7 @@ def compute_crc(data):
 
 
 def parse(file, dump_images=False):
-    print('File: "%s"' % file)
+    print(f'File: "{file}"')
     data = open(file, "rb").read()
     crc = compute_crc(data[:-4])
     prefix, data = consume("<5sBIB", data, "signature version size targets")
@@ -38,10 +38,7 @@ def parse(file, dump_images=False):
             "<6sBI255s2I", data, "signature altsetting named name size elements"
         )
         tprefix["num"] = t
-        if tprefix["named"]:
-            tprefix["name"] = cstring(tprefix["name"])
-        else:
-            tprefix["name"] = ""
+        tprefix["name"] = cstring(tprefix["name"]) if tprefix["named"] else ""
         print(
             '%(signature)s %(num)d, alt setting: %(altsetting)s, name: "%(name)s", size: %(size)d, elements: %(elements)d'
             % tprefix
@@ -57,7 +54,7 @@ def parse(file, dump_images=False):
             if dump_images:
                 out = "%s.target%d.image%d.bin" % (file, t, e)
                 open(out, "wb").write(image)
-                print('    DUMPED IMAGE TO "%s"' % out)
+                print(f'    DUMPED IMAGE TO "{out}"')
         if len(target):
             print("target %d: PARSE ERROR" % t)
     suffix = named(struct.unpack("<4H3sBI", data[:16]), "device product vendor dfu ufd len crc")
@@ -79,7 +76,7 @@ def build(file, targets, device=DEFAULT_DEVICE):
         for image in target:
             # pad image to 8 bytes (needed at least for L476)
             pad = (8 - len(image["data"]) % 8) % 8
-            image["data"] = image["data"] + bytes(bytearray(8)[0:pad])
+            image["data"] = image["data"] + bytes(bytearray(8)[:pad])
             #
             tdata += struct.pack("<2I", image["address"], len(image["data"])) + image["data"]
         tdata = (
@@ -112,7 +109,7 @@ if __name__ == "__main__":
         "--device",
         action="store",
         dest="device",
-        help="build for DEVICE, defaults to %s" % DEFAULT_DEVICE,
+        help=f"build for DEVICE, defaults to {DEFAULT_DEVICE}",
         metavar="DEVICE",
     )
     parser.add_option(
@@ -131,31 +128,29 @@ if __name__ == "__main__":
             try:
                 address, binfile = arg.split(":", 1)
             except ValueError:
-                print("Address:file couple '%s' invalid." % arg)
+                print(f"Address:file couple '{arg}' invalid.")
                 sys.exit(1)
             try:
                 address = int(address, 0) & 0xFFFFFFFF
             except ValueError:
-                print("Address %s invalid." % address)
+                print(f"Address {address} invalid.")
                 sys.exit(1)
             if not os.path.isfile(binfile):
-                print("Unreadable file '%s'." % binfile)
+                print(f"Unreadable file '{binfile}'.")
                 sys.exit(1)
             target.append({"address": address, "data": open(binfile, "rb").read()})
         outfile = args[0]
-        device = DEFAULT_DEVICE
-        if options.device:
-            device = options.device
+        device = options.device if options.device else DEFAULT_DEVICE
         try:
             v, d = map(lambda x: int(x, 0) & 0xFFFF, device.split(":", 1))
         except:
-            print("Invalid device '%s'." % device)
+            print(f"Invalid device '{device}'.")
             sys.exit(1)
         build(outfile, [target], device)
     elif len(args) == 1:
         infile = args[0]
         if not os.path.isfile(infile):
-            print("Unreadable file '%s'." % infile)
+            print(f"Unreadable file '{infile}'.")
             sys.exit(1)
         parse(infile, dump_images=options.dump_images)
     else:

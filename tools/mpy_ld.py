@@ -28,10 +28,11 @@
 Link .o files to .mpy
 """
 
+
 import sys, os, struct, re
 from elftools.elf import elffile
 
-sys.path.append(os.path.dirname(__file__) + "/../py")
+sys.path.append(f"{os.path.dirname(__file__)}/../py")
 import makeqstrdata as qstrutil
 
 # MicroPython constants
@@ -86,7 +87,7 @@ def asm_jump_x86(entry):
 
 def asm_jump_arm(entry):
     b_off = entry - 4
-    if b_off >> 11 == 0 or b_off >> 11 == -1:
+    if b_off >> 11 in [0, -1]:
         # Signed value fits in 12 bits
         b0 = 0xE000 | (b_off >> 1 & 0x07FF)
         b1 = 0
@@ -227,7 +228,7 @@ def extract_qstrs(source_files):
                 while line:
                     m = re.search(r"MP_OBJ_NEW_QSTR\((MP_QSTR_[A-Za-z0-9_]*)\)", line)
                     if m:
-                        objs.add(m.group(1))
+                        objs.add(m[1])
                     else:
                         m = re.search(r"MP_QSTR_[A-Za-z0-9_]*", line)
                         if m:
@@ -239,7 +240,9 @@ def extract_qstrs(source_files):
                         line = ""
             return vals, objs
 
-    static_qstrs = ["MP_QSTR_" + qstrutil.qstr_escape(q) for q in qstrutil.static_qstr_list]
+    static_qstrs = [
+        f"MP_QSTR_{qstrutil.qstr_escape(q)}" for q in qstrutil.static_qstr_list
+    ]
 
     qstr_vals = set()
     qstr_objs = set()
@@ -323,7 +326,7 @@ class LinkEnv:
         if name in self.known_syms:
             s = self.known_syms[name]
             return s.section.addr + s["st_value"]
-        raise LinkError("unknown symbol: {}".format(name))
+        raise LinkError(f"unknown symbol: {name}")
 
 
 def build_got_generic(env):
@@ -495,13 +498,11 @@ def do_relocation_text(env, text_addr, r):
 
         if sec.name.startswith(".bss"):
             raise LinkError(
-                "{}: fixed relocation to bss (bss variables can't be static)".format(s.filename)
+                f"{s.filename}: fixed relocation to bss (bss variables can't be static)"
             )
 
         if sec.name.startswith(".external"):
-            raise LinkError(
-                "{}: fixed relocation to external symbol: {}".format(s.filename, s.name)
-            )
+            raise LinkError(f"{s.filename}: fixed relocation to external symbol: {s.name}")
 
         addr = sec.addr + s["st_value"]
         reloc = addr - r_offset + r_addend
@@ -557,7 +558,7 @@ def do_relocation_text(env, text_addr, r):
         lit_ptr = env.xt_literals[lit_idx]
         if isinstance(lit_ptr, str):
             addr = env.got_section.addr + env.got_entries[lit_ptr].offset
-            log_name = "GOT {}".format(lit_ptr)
+            log_name = f"GOT {lit_ptr}"
         else:
             addr = env.lit_section.addr + env.lit_entries[lit_ptr].offset
             log_name = "LIT"
@@ -597,18 +598,12 @@ def do_relocation_text(env, text_addr, r):
     else:
         assert 0, reloc_type
 
-    # Log information about relocation
     if log_name is None:
-        if s_type == "STT_SECTION":
-            log_name = s.section.name
-        else:
-            log_name = s.name
+        log_name = s.section.name if s_type == "STT_SECTION" else s.name
     log(LOG_LEVEL_3, "  {:08x} {} -> {:08x}".format(r_offset, log_name, addr))
 
 
 def do_relocation_data(env, text_addr, r):
-    s = r.sym
-    s_type = s.entry["st_info"]["type"]
     r_offset = r["r_offset"] + text_addr
     r_info_type = r["r_info_type"]
     try:
@@ -632,18 +627,14 @@ def do_relocation_data(env, text_addr, r):
             struct_type = "<I"
         elif env.arch.word_size == 8:
             struct_type = "<Q"
+        s = r.sym
         sec = s.section
         assert r_offset % env.arch.word_size == 0
         addr = sec.addr + s["st_value"] + r_addend
-        if s_type == "STT_SECTION":
-            log_name = sec.name
-        else:
-            log_name = s.name
+        s_type = s.entry["st_info"]["type"]
+        log_name = sec.name if s_type == "STT_SECTION" else s.name
         log(LOG_LEVEL_3, "  {:08x} -> {} {:08x}".format(r_offset, log_name, addr))
-        if env.arch.separate_rodata:
-            data = env.full_rodata
-        else:
-            data = env.full_text
+        data = env.full_rodata if env.arch.separate_rodata else env.full_text
         (existing,) = struct.unpack_from(struct_type, data, r_offset)
         if sec.name.startswith((".text", ".rodata", ".data.rel.ro", ".bss")):
             struct.pack_into(struct_type, data, r_offset, existing + addr)
@@ -653,10 +644,7 @@ def do_relocation_data(env, text_addr, r):
             kind = s.mp_fun_table_offset
         else:
             assert 0, sec.name
-        if env.arch.separate_rodata:
-            base = ".rodata"
-        else:
-            base = ".text"
+        base = ".rodata" if env.arch.separate_rodata else ".text"
         env.mpy_relocs.append((base, r_offset, kind))
 
     else:
@@ -687,10 +675,7 @@ def load_object_file(env, felf):
                     else:
                         env.sections.append(sec)
                 elif s.name.startswith(".data"):
-                    raise LinkError("{}: {} non-empty".format(felf, s.name))
-                else:
-                    # Ignore section
-                    pass
+                    raise LinkError(f"{felf}: {s.name} non-empty")
             elif s.header.sh_type in ("SHT_REL", "SHT_RELA"):
                 shndx = s.header.sh_info
                 if shndx in sections_shndx:
@@ -712,7 +697,7 @@ def load_object_file(env, felf):
                     if sym.name in env.known_syms and not sym.name.startswith(
                         "__x86.get_pc_thunk."
                     ):
-                        raise LinkError("duplicate symbol: {}".format(sym.name))
+                        raise LinkError(f"duplicate symbol: {sym.name}")
                     env.known_syms[sym.name] = sym
             elif sym.entry["st_shndx"] == "SHN_UNDEF" and sym["st_info"]["bind"] == "STB_GLOBAL":
                 # Undefined global symbol, needs resolving
@@ -788,12 +773,11 @@ def link_objects(env, native_qstr_vals_len, native_qstr_objs_len):
             sym.section = env.qstr_obj_section
         elif sym.name in env.known_syms:
             sym.resolved = env.known_syms[sym.name]
+        elif sym.name in fun_table:
+            sym.section = mp_fun_table_sec
+            sym.mp_fun_table_offset = fun_table[sym.name]
         else:
-            if sym.name in fun_table:
-                sym.section = mp_fun_table_sec
-                sym.mp_fun_table_offset = fun_table[sym.name]
-            else:
-                raise LinkError("{}: undefined symbol: {}".format(sym.filename, sym.name))
+            raise LinkError(f"{sym.filename}: undefined symbol: {sym.name}")
 
     # Align sections, assign their addresses, and create full_text
     env.full_text = bytearray(env.arch.asm_jump(8))  # dummy, to be filled in later
@@ -822,7 +806,7 @@ def link_objects(env, native_qstr_vals_len, native_qstr_objs_len):
             continue
         log(
             LOG_LEVEL_3,
-            "{}: {} relocations via {}:".format(sec.filename, sec.name, sec.reloc_name),
+            f"{sec.filename}: {sec.name} relocations via {sec.reloc_name}:",
         )
         for r in sec.reloc:
             if sec.name.startswith((".text", ".rodata")):
@@ -868,7 +852,7 @@ class MPYOutput:
             self.write_bytes(b"\x00")
 
     def write_reloc(self, base, offset, dest, n):
-        need_offset = not (base == self.prev_base and offset == self.prev_offset + 1)
+        need_offset = base != self.prev_base or offset != self.prev_offset + 1
         self.prev_offset = offset + n - 1
         if dest <= 2:
             dest = (dest << 1) | (n > 1)
@@ -893,12 +877,12 @@ def build_mpy(env, entry_offset, fmpy, native_qstr_vals, native_qstr_objs):
     jump = env.arch.asm_jump(entry_offset)
     env.full_text[: len(jump)] = jump
 
-    log(LOG_LEVEL_1, "arch:         {}".format(env.arch.name))
-    log(LOG_LEVEL_1, "text size:    {}".format(len(env.full_text)))
+    log(LOG_LEVEL_1, f"arch:         {env.arch.name}")
+    log(LOG_LEVEL_1, f"text size:    {len(env.full_text)}")
     if len(env.full_rodata):
-        log(LOG_LEVEL_1, "rodata size:  {}".format(len(env.full_rodata)))
-    log(LOG_LEVEL_1, "bss size:     {}".format(len(env.full_bss)))
-    log(LOG_LEVEL_1, "GOT entries:  {}".format(len(env.got_entries)))
+        log(LOG_LEVEL_1, f"rodata size:  {len(env.full_rodata)}")
+    log(LOG_LEVEL_1, f"bss size:     {len(env.full_bss)}")
+    log(LOG_LEVEL_1, f"GOT entries:  {len(env.got_entries)}")
 
     # xxd(env.full_text)
 
@@ -958,10 +942,7 @@ def build_mpy(env, entry_offset, fmpy, native_qstr_vals, native_qstr_objs):
         if isinstance(kind, str) and kind.startswith(".text"):
             kind = 0
         elif kind in (".rodata", ".data.rel.ro"):
-            if env.arch.separate_rodata:
-                kind = rodata_const_table_idx
-            else:
-                kind = 0
+            kind = rodata_const_table_idx if env.arch.separate_rodata else 0
         elif isinstance(kind, str) and kind.startswith(".bss"):
             kind = bss_const_table_idx
         elif kind == "mp_fun_table":
@@ -996,7 +977,7 @@ def build_mpy(env, entry_offset, fmpy, native_qstr_vals, native_qstr_objs):
 def do_preprocess(args):
     if args.output is None:
         assert args.files[0].endswith(".c")
-        args.output = args.files[0][:-1] + "config.h"
+        args.output = f"{args.files[0][:-1]}config.h"
     static_qstrs, qstr_vals, qstr_objs = extract_qstrs(args.files)
     with open(args.output, "w") as f:
         print(
@@ -1015,30 +996,28 @@ def do_preprocess(args):
                 "#define MP_OBJ_NEW_QSTR_%s ((mp_obj_t)mp_native_qstr_obj_table[%d])" % (q, i),
                 file=f,
             )
-        if args.arch == "xtensawin":
-            qstr_type = "uint32_t"  # esp32 can only read 32-bit values from IRAM
-        else:
-            qstr_type = "uint16_t"
-        print("extern const {} mp_native_qstr_val_table[];".format(qstr_type), file=f)
+        qstr_type = "uint32_t" if args.arch == "xtensawin" else "uint16_t"
+        print(f"extern const {qstr_type} mp_native_qstr_val_table[];", file=f)
         print("extern const mp_uint_t mp_native_qstr_obj_table[];", file=f)
 
 
 def do_link(args):
     if args.output is None:
         assert args.files[0].endswith(".o")
-        args.output = args.files[0][:-1] + "mpy"
+        args.output = f"{args.files[0][:-1]}mpy"
     native_qstr_vals = []
     native_qstr_objs = []
     if args.qstrs is not None:
         with open(args.qstrs) as f:
             for l in f:
-                m = re.match(r"#define MP_QSTR_([A-Za-z0-9_]*) \(mp_native_", l)
-                if m:
-                    native_qstr_vals.append(m.group(1))
-                else:
-                    m = re.match(r"#define MP_OBJ_NEW_QSTR_MP_QSTR_([A-Za-z0-9_]*)", l)
-                    if m:
-                        native_qstr_objs.append(m.group(1))
+                if m := re.match(
+                    r"#define MP_QSTR_([A-Za-z0-9_]*) \(mp_native_", l
+                ):
+                    native_qstr_vals.append(m[1])
+                elif m := re.match(
+                    r"#define MP_OBJ_NEW_QSTR_MP_QSTR_([A-Za-z0-9_]*)", l
+                ):
+                    native_qstr_objs.append(m[1])
     log(LOG_LEVEL_2, "qstr vals: " + ", ".join(native_qstr_vals))
     log(LOG_LEVEL_2, "qstr objs: " + ", ".join(native_qstr_objs))
     env = LinkEnv(args.arch)

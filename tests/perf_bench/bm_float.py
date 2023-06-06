@@ -15,7 +15,7 @@ class Point(object):
         self.z = (x * x) / 2
 
     def __repr__(self):
-        return "<Point: x=%s, y=%s, z=%s>" % (self.x, self.y, self.z)
+        return f"<Point: x={self.x}, y={self.y}, z={self.z}>"
 
     def normalize(self):
         x = self.x
@@ -27,9 +27,9 @@ class Point(object):
         self.z /= norm
 
     def maximize(self, other):
-        self.x = self.x if self.x > other.x else other.x
-        self.y = self.y if self.y > other.y else other.y
-        self.z = self.z if self.z > other.z else other.z
+        self.x = max(self.x, other.x)
+        self.y = max(self.y, other.y)
+        self.z = max(self.z, other.z)
         return self
 
 

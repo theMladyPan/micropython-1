@@ -166,7 +166,7 @@ def system(cmd):
 def convert_path(path):
     # Perform variable substituion.
     for name, value in VARS.items():
-        path = path.replace("$({})".format(name), value)
+        path = path.replace(f"$({name})", value)
     # Convert to absolute path (so that future operations don't rely on
     # still being chdir'ed).
     return os.path.abspath(path)
@@ -178,7 +178,7 @@ def get_timestamp(path, default=None):
         return stat.st_mtime
     except OSError:
         if default is None:
-            raise FreezeError("cannot stat {}".format(path))
+            raise FreezeError(f"cannot stat {path}")
         return default
 
 
@@ -199,19 +199,16 @@ def mkdir(filename):
 def freeze_internal(kind, path, script, opt):
     path = convert_path(path)
     if not os.path.isdir(path):
-        raise FreezeError("freeze path must be a directory: {}".format(path))
+        raise FreezeError(f"freeze path must be a directory: {path}")
     if script is None and kind == KIND_AS_STR:
         manifest_list.append((KIND_AS_STR, path, script, opt))
     elif script is None or isinstance(script, str) and script.find(".") == -1:
         # Recursively search `path` for files to freeze, optionally restricted
         # to a subdirectory specified by `script`
-        if script is None:
-            subdir = ""
-        else:
-            subdir = "/" + script
+        subdir = "" if script is None else f"/{script}"
         for dirpath, dirnames, filenames in os.walk(path + subdir, followlinks=True):
             for f in filenames:
-                freeze_internal(kind, path, (dirpath + "/" + f)[len(path) + 1 :], opt)
+                freeze_internal(kind, path, f"{dirpath}/{f}"[len(path) + 1 :], opt)
     elif not isinstance(script, str):
         # `script` is an iterable of items to freeze
         for s in script:
@@ -225,11 +222,11 @@ def freeze_internal(kind, path, script, opt):
                     kind = k
                     break
             else:
-                print("warn: unsupported file type, skipped freeze: {}".format(script))
+                print(f"warn: unsupported file type, skipped freeze: {script}")
                 return
         wanted_extension = extension_kind[kind]
         if not script.endswith(wanted_extension):
-            raise FreezeError("expecting a {} file, got {}".format(wanted_extension, script))
+            raise FreezeError(f"expecting a {wanted_extension} file, got {script}")
         manifest_list.append((kind, path, script, opt))
 
 
@@ -251,7 +248,7 @@ def generate_frozen_str_content(paths):
 
         for dirpath, dirnames, filenames in os.walk(root):
             for f in filenames:
-                fullpath = dirpath + "/" + f
+                fullpath = f"{dirpath}/{f}"
                 st = os.stat(fullpath)
                 modules.append((path, fullpath[root_len + 1 :], st))
 
@@ -269,7 +266,7 @@ def generate_frozen_str_content(paths):
 
     output.append(b"const char mp_frozen_str_content[] = {\n")
     for path, f, st in modules:
-        data = open(path + "/" + f, "rb").read()
+        data = open(f"{path}/{f}", "rb").read()
 
         # We need to properly escape the script data to create a C string.
         # When C parses hex characters of the form \x00 it keeps parsing the hex
@@ -337,7 +334,7 @@ def main():
 
     # Ensure mpy-cross is built
     if not os.path.exists(MPY_CROSS):
-        print("mpy-cross not found at {}, please build it first".format(MPY_CROSS))
+        print(f"mpy-cross not found at {MPY_CROSS}, please build it first")
         sys.exit(1)
 
     # Include top-level inputs, to generate the manifest
@@ -348,7 +345,7 @@ def main():
             else:
                 exec(input_manifest)
         except FreezeError as er:
-            print('freeze error executing "{}": {}'.format(input_manifest, er.args[0]))
+            print(f'freeze error executing "{input_manifest}": {er.args[0]}')
             sys.exit(1)
 
     # Process the manifest
@@ -360,27 +357,29 @@ def main():
             str_paths.append(path)
             ts_outfile = get_timestamp_newest(path)
         elif kind == KIND_AS_MPY:
-            infile = "{}/{}".format(path, script)
-            outfile = "{}/frozen_mpy/{}.mpy".format(args.build_dir, script[:-3])
+            infile = f"{path}/{script}"
+            outfile = f"{args.build_dir}/frozen_mpy/{script[:-3]}.mpy"
             ts_infile = get_timestamp(infile)
             ts_outfile = get_timestamp(outfile, 0)
             if ts_infile >= ts_outfile:
                 print("MPY", script)
                 mkdir(outfile)
                 res, out = system(
-                    [MPY_CROSS]
-                    + args.mpy_cross_flags.split()
-                    + ["-o", outfile, "-s", script, "-O{}".format(opt), infile]
+                    (
+                        [MPY_CROSS]
+                        + args.mpy_cross_flags.split()
+                        + ["-o", outfile, "-s", script, f"-O{opt}", infile]
+                    )
                 )
                 if res != 0:
-                    print("error compiling {}:".format(infile))
+                    print(f"error compiling {infile}:")
                     sys.stdout.buffer.write(out)
                     raise SystemExit(1)
                 ts_outfile = get_timestamp(outfile)
             mpy_files.append(outfile)
         else:
             assert kind == KIND_MPY
-            infile = "{}/{}".format(path, script)
+            infile = f"{path}/{script}"
             mpy_files.append(infile)
             ts_outfile = get_timestamp(infile)
         ts_newest = max(ts_newest, ts_outfile)
@@ -396,18 +395,22 @@ def main():
     # Freeze .mpy files
     if mpy_files:
         res, output_mpy = system(
-            [
-                sys.executable,
-                MPY_TOOL,
-                "-f",
-                "-q",
-                args.build_dir + "/genhdr/qstrdefs.preprocessed.h",
-            ]
-            + args.mpy_tool_flags.split()
-            + mpy_files
+            (
+                (
+                    [
+                        sys.executable,
+                        MPY_TOOL,
+                        "-f",
+                        "-q",
+                        f"{args.build_dir}/genhdr/qstrdefs.preprocessed.h",
+                    ]
+                    + args.mpy_tool_flags.split()
+                )
+                + mpy_files
+            )
         )
         if res != 0:
-            print("error freezing mpy {}:".format(mpy_files))
+            print(f"error freezing mpy {mpy_files}:")
             print(output_mpy.decode())
             sys.exit(1)
     else:

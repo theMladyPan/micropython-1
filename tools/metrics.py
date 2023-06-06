@@ -86,16 +86,15 @@ def syscmd(*args):
 def parse_port_list(args):
     if not args:
         return list(port_data.values())
-    else:
-        ports = []
-        for arg in args:
-            for port_char in arg:
-                try:
-                    ports.append(port_data[port_char])
-                except KeyError:
-                    print("unknown port:", port_char)
-                    sys.exit(1)
-        return ports
+    ports = []
+    for arg in args:
+        for port_char in arg:
+            try:
+                ports.append(port_data[port_char])
+            except KeyError:
+                print("unknown port:", port_char)
+                sys.exit(1)
+    return ports
 
 
 def read_build_log(filename):
@@ -130,7 +129,7 @@ def do_diff(args):
         error_threshold = int(args.pop(0))
 
     if len(args) != 2:
-        print("usage: %s diff [--error-threshold <x>] <out1> <out2>" % sys.argv[0])
+        print(f"usage: {sys.argv[0]} diff [--error-threshold <x>] <out1> <out2>")
         sys.exit(1)
 
     data1 = read_build_log(args[0])
@@ -140,30 +139,25 @@ def do_diff(args):
     for key, value1 in data1.items():
         value2 = data2[key]
         for port in port_data.values():
-            if key == "ports/{}/{}".format(port.dir, port.output):
+            if key == f"ports/{port.dir}/{port.output}":
                 name = port.name
                 break
         data = [v2 - v1 for v1, v2 in zip(value1, value2)]
         warn = ""
         board = re.search(r"/build-([A-Za-z0-9_]+)/", key)
-        if board:
-            board = board.group(1)
-        else:
-            board = ""
+        board = board[1] if board else ""
+        if data[1] != 0:
+            warn += " %+u(data)" % data[1]
         if name == "cc3200":
             delta = data[0]
             percent = 100 * delta / value1[0]
-            if data[1] != 0:
-                warn += " %+u(data)" % data[1]
         else:
             delta = data[3]
             percent = 100 * delta / value1[3]
-            if data[1] != 0:
-                warn += " %+u(data)" % data[1]
             if data[2] != 0:
                 warn += " %+u(bss)" % data[2]
         if warn:
-            warn = "[incl%s]" % warn
+            warn = f"[incl{warn}]"
         print("%11s: %+5u %+.3f%% %s%s" % (name, delta, percent, board, warn))
         max_delta = delta if max_delta is None else max(max_delta, delta)
 
@@ -179,7 +173,7 @@ def do_clean(args):
 
     print("CLEANING")
     for port in ports:
-        syscmd("make", "-C", "ports/{}".format(port.dir), port.make_flags, "clean")
+        syscmd("make", "-C", f"ports/{port.dir}", port.make_flags, "clean")
 
 
 def do_build(args):
@@ -193,7 +187,7 @@ def do_build(args):
 
     print("BUILDING PORTS")
     for port in ports:
-        syscmd("make", "-C", "ports/{}".format(port.dir), MAKE_FLAGS, port.make_flags)
+        syscmd("make", "-C", f"ports/{port.dir}", MAKE_FLAGS, port.make_flags)
 
     do_sizes(args)
 
@@ -205,24 +199,24 @@ def do_sizes(args):
 
     print("COMPUTING SIZES")
     for port in ports:
-        syscmd("size", "ports/{}/{}".format(port.dir, port.output))
+        syscmd("size", f"ports/{port.dir}/{port.output}")
 
 
 def main():
     # Get command to execute
     if len(sys.argv) == 1:
         print("Available commands:")
-        for cmd in globals():
+        for cmd, value in globals().items():
             if cmd.startswith("do_"):
-                print("   {:9} {}".format(cmd[3:], globals()[cmd].__doc__))
+                print("   {:9} {}".format(cmd[3:], value.__doc__))
         sys.exit(1)
     cmd = sys.argv.pop(1)
 
     # Dispatch to desired command
     try:
-        cmd = globals()["do_{}".format(cmd)]
+        cmd = globals()[f"do_{cmd}"]
     except KeyError:
-        print("{}: unknown command '{}'".format(sys.argv[0], cmd))
+        print(f"{sys.argv[0]}: unknown command '{cmd}'")
         sys.exit(1)
     cmd(sys.argv[1:])
 

@@ -90,7 +90,7 @@ def demo():
         if p.is_connected():
             # Short burst of queued notifications.
             for _ in range(3):
-                data = str(i) + "_"
+                data = f"{str(i)}_"
                 print("TX", data)
                 p.send(data)
                 i += 1

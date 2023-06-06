@@ -33,21 +33,20 @@ def pins():
     width = [0, 0, 0, 0]
     rows = []
     for pin_entry in pins_af.PINS_AF:
-        row = []
         pin_name = pin_entry[0]
         pin = pyb.Pin(pin_name)
         pin_mode = pin.mode()
-        row.append(pin_name)
-        row.append(mode_str[pin_mode])
-        row.append(pull_str[pin.pull()])
-        if pin_mode == pyb.Pin.AF_PP or pin_mode == pyb.Pin.AF_OD:
+        row = [pin_name, mode_str[pin_mode], pull_str[pin.pull()]]
+        if pin_mode in [pyb.Pin.AF_PP, pyb.Pin.AF_OD]:
             pin_af = pin.af()
-            for af_entry in pin_entry[1:]:
-                if pin_af == af_entry[0]:
-                    af_str = "%d: %s" % (pin_af, af_entry[1])
-                    break
-            else:
-                af_str = "%d" % pin_af
+            af_str = next(
+                (
+                    "%d: %s" % (pin_af, af_entry[1])
+                    for af_entry in pin_entry[1:]
+                    if pin_af == af_entry[0]
+                ),
+                "%d" % pin_af,
+            )
         else:
             af_str = ""
         row.append(af_str)

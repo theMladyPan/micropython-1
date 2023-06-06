@@ -66,7 +66,7 @@ def test_pin_read(pull):
     # enable the pull resistor on all pins, then read the value
     for p in pin_map:
         pin = Pin(p, mode=Pin.IN, pull=pull)
-    for p in pin_map:
+    for _ in pin_map:
         print(pin())
 
 
@@ -139,7 +139,7 @@ pin.mode(Pin.IN)
 print(pin.mode() == Pin.IN)
 # pull
 pin.pull(None)
-print(pin.pull() == None)
+print(pin.pull() is None)
 pin.pull(Pin.PULL_DOWN)
 print(pin.pull() == Pin.PULL_DOWN)
 # drive

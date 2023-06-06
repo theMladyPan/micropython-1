@@ -128,20 +128,19 @@ class BLESimpleCentral:
         elif event == _IRQ_GATTC_CHARACTERISTIC_RESULT:
             # Connected device returned a characteristic.
             conn_handle, def_handle, value_handle, properties, uuid = data
-            if conn_handle == self._conn_handle and uuid == _UART_RX_CHAR_UUID:
-                self._rx_handle = value_handle
-            if conn_handle == self._conn_handle and uuid == _UART_TX_CHAR_UUID:
-                self._tx_handle = value_handle
+            if conn_handle == self._conn_handle:
+                if uuid == _UART_RX_CHAR_UUID:
+                    self._rx_handle = value_handle
+                if uuid == _UART_TX_CHAR_UUID:
+                    self._tx_handle = value_handle
 
         elif event == _IRQ_GATTC_CHARACTERISTIC_DONE:
             # Characteristic query complete.
-            if self._tx_handle is not None and self._rx_handle is not None:
-                # We've finished connecting and discovering device, fire the connect callback.
-                if self._conn_callback:
-                    self._conn_callback()
-            else:
+            if self._tx_handle is None or self._rx_handle is None:
                 print("Failed to find uart rx characteristic.")
 
+            elif self._conn_callback:
+                self._conn_callback()
         elif event == _IRQ_GATTC_WRITE_DONE:
             conn_handle, value_handle, status = data
             print("TX complete")
@@ -230,7 +229,7 @@ def demo():
     i = 0
     while central.is_connected():
         try:
-            v = str(i) + "_"
+            v = f"{str(i)}_"
             print("TX", v)
             central.write(v, with_response)
         except:

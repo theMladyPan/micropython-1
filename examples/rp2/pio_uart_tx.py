@@ -41,4 +41,4 @@ def pio_uart_print(sm, s):
 
 # Print a different message from each UART
 for i, u in enumerate(uarts):
-    pio_uart_print(u, "Hello from UART {}!\n".format(i))
+    pio_uart_print(u, f"Hello from UART {i}!\n")

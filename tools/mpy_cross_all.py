@@ -24,18 +24,13 @@ path_prefix_len = len(args.dir) + 1
 for path, subdirs, files in os.walk(args.dir):
     for f in files:
         if f.endswith(".py"):
-            fpath = path + "/" + f
+            fpath = f"{path}/{f}"
             # print(fpath)
-            out_fpath = args.out + "/" + fpath[path_prefix_len:-3] + ".mpy"
+            out_fpath = f"{args.out}/{fpath[path_prefix_len:-3]}.mpy"
             out_dir = os.path.dirname(out_fpath)
             if not os.path.isdir(out_dir):
                 os.makedirs(out_dir)
-            cmd = "mpy-cross -v -v %s -s %s %s -o %s" % (
-                TARGET_OPTS.get(args.target, ""),
-                fpath[path_prefix_len:],
-                fpath,
-                out_fpath,
-            )
+            cmd = f'mpy-cross -v -v {TARGET_OPTS.get(args.target, "")} -s {fpath[path_prefix_len:]} {fpath} -o {out_fpath}'
             # print(cmd)
             res = os.system(cmd)
             assert res == 0
